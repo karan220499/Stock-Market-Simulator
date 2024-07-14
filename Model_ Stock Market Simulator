@@ -1,0 +1,95 @@
+import numpy as np
+import pandas as pd
+import yfinance as yf
+import matplotlib.pyplot as plt
+
+# Get list of S&P 500 tickers
+sp500_url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+sp500_table = pd.read_html(sp500_url)
+sp500_tickers = sp500_table[0]['Symbol'].tolist()
+
+class StockMarketSimulator:
+    def __init__(self, initial_balance):
+        self.balance = initial_balance
+        self.portfolio = {}
+        self.history = []
+
+    def buy_stock(self, ticker, amount):
+        data = yf.Ticker(ticker).history(period='1d')
+        if data.empty:
+            print(f"Invalid ticker symbol: {ticker}")
+            return
+        price = data['Close'].iloc[-1]
+        total_cost = price * amount
+
+        if self.balance < total_cost:
+            print("Insufficient balance.")
+            return
+        
+        self.balance -= total_cost
+        if ticker in self.portfolio:
+            self.portfolio[ticker] += amount
+        else:
+            self.portfolio[ticker] = amount
+        self.history.append({'action': 'buy', 'ticker': ticker, 'amount': amount, 'price': price, 'total_cost': total_cost})
+        print(f"Bought {amount} shares of {ticker} at {price} each for a total of {total_cost}.")
+
+    def sell_stock(self, ticker, amount):
+        if ticker not in self.portfolio or self.portfolio[ticker] < amount:
+            print(f"Insufficient shares in portfolio for: {ticker}")
+            return
+
+        data = yf.Ticker(ticker).history(period='1d')
+        if data.empty:
+            print(f"Invalid ticker symbol: {ticker}")
+            return
+        price = data['Close'].iloc[-1]
+        total_revenue = price * amount
+
+        self.balance += total_revenue
+        self.portfolio[ticker] -= amount
+        if self.portfolio[ticker] == 0:
+            del self.portfolio[ticker]
+        self.history.append({'action': 'sell', 'ticker': ticker, 'amount': amount, 'price': price, 'total_revenue': total_revenue})
+        print(f"Sold {amount} shares of {ticker} at {price} each for a total of {total_revenue}.")
+
+    def get_portfolio_value(self):
+        total_value = self.balance
+        for ticker, amount in self.portfolio.items():
+            data = yf.Ticker(ticker).history(period='1d')
+            if data.empty:
+                continue
+            price = data['Close'].iloc[-1]
+            total_value += price * amount
+        return total_value
+
+    def plot_performance(self):
+        portfolio_values = []
+        for record in self.history:
+            portfolio_values.append(self.get_portfolio_value())
+        plt.plot(portfolio_values)
+        plt.xlabel('Transactions')
+        plt.ylabel('Portfolio Value')
+        plt.title('Portfolio Performance Over Time')
+        plt.show()
+        
+if __name__ == "__main__":
+    initial_balance = float(input("Enter the initial balance: "))
+    simulator = StockMarketSimulator(initial_balance=initial_balance)
+
+    while True:
+        action = input("Enter action (buy/sell/exit): ").strip().lower()
+        if action == "exit":
+            break
+        company_name = input("Enter company name: ").strip()
+        amount = int(input("Enter the number of shares: "))
+
+        if action == "buy":
+            simulator.buy_stock(company_name, amount)
+        elif action == "sell":
+            simulator.sell_stock(company_name, amount)
+        else:
+            print("Invalid action. Please enter 'buy', 'sell', or 'exit'.")
+
+    print(f"Current portfolio value: {simulator.get_portfolio_value()}")
+    simulator.plot_performance()
